@@ -87,21 +87,36 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
         startInput=document.getElementById('start'),endInput=document.getElementById('end'),
         apply=document.getElementById('apply'),nowBtn=document.getElementById('now'),
         ticksG=document.getElementById('ticks'),numsG=document.getElementById('numbers'),dashG=document.getElementById('dashlines');
+
+  // --- Load saved settings ---
+  const settings = JSON.parse(localStorage.getItem('clockSettings') || '{}');
+  if(settings.start) startInput.value = settings.start;
+  if(settings.end) endInput.value = settings.end;
+  if(settings.colors){
+    for(const key in settings.colors){
+      document.documentElement.style.setProperty(`--${key}`, settings.colors[key]);
+    }
+  }
+  if(settings.bgImage) document.body.style.backgroundImage = `url(${settings.bgImage})`;
+
+  // --- Tick marks and numbers ---
   for(let h=0;h<12;h++){
     const ang=(h/12)*Math.PI*2-Math.PI/2;
     const x1=130+Math.cos(ang)*100,y1=130+Math.sin(ang)*100,x2=130+Math.cos(ang)*110,y2=130+Math.sin(ang)*110;
     const tick=document.createElementNS('http://www.w3.org/2000/svg','line');
     tick.setAttribute('x1',x1);tick.setAttribute('y1',y1);tick.setAttribute('x2',x2);tick.setAttribute('y2',y2);
     tick.setAttribute('stroke','rgba(0,0,0,0.08)');tick.setAttribute('stroke-width','2');ticksG.appendChild(tick);
-    const dx=130+Math.cos(ang)*84,dy=130+Math.sin(ang)*84; // shorter line (80%)
+
+    const dx=130+Math.cos(ang)*84,dy=130+Math.sin(ang)*84;
     const dline=document.createElementNS('http://www.w3.org/2000/svg','line');
     dline.setAttribute('x1',130);dline.setAttribute('y1',130);
     dline.setAttribute('x2',dx);dline.setAttribute('y2',dy);
     dline.setAttribute('stroke','var(--dash)');
     dline.setAttribute('stroke-width','1');
-    dline.setAttribute('stroke-dasharray','6 10'); // more spaced
+    dline.setAttribute('stroke-dasharray','6 10');
     dline.setAttribute('stroke-linecap','round');
     dashG.appendChild(dline);
+
     const num=document.createElementNS('http://www.w3.org/2000/svg','text');
     const clockNumber=(h===0?12:h);
     const nx=130+Math.cos(ang)*74,ny=130+Math.sin(ang)*74+7;
@@ -110,17 +125,75 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
     num.textContent=String(clockNumber);
     numsG.appendChild(num);
   }
+
+  // --- Time helpers ---
   function toMinutes(hm){if(!hm)return null;const[a,b]=hm.split(':').map(Number);return a*60+b;}
   function minuteToAngle(min){const m12=min%(12*60);return (m12/(12*60))*Math.PI*2-Math.PI/2;}
   function polar(cx,cy,r,a){return{x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r};}
-  function describe(cx,cy,r,a1,a2){let a2p=a2;if(a2p<=a1)a2p+=Math.PI*2;const large=(a2p-a1)>Math.PI?1:0;const s=polar(cx,cy,r,a1),e=polar(cx,cy,r,a2p);return`M ${cx},${cy} L ${s.x},${s.y} A ${r},${r} 0 ${large} 1 ${e.x},${e.y} Z`;}
+  function describe(cx,cy,r,a1,a2){let a2p=a2;if(a2p<=a1)a2p+=Math.PI*2;const large=(a2p-a1)>Math.PI?1:0;const s=polar(cx,cy,r,a1),e=polar(cx,cy,r,a2p);return`M ${cx},${cy} L ${s.x},${s.y} A ${r},${r} 0 ${large} 1 ${e.x},${e.y} Z`; }
+
   let block=null;
-  function setBlock(sHM,eHM){const s=toMinutes(sHM),e=toMinutes(eHM);if(s==null||e==null)return;const eAdj=(e<=s)?e+24*60:e;block={s,e:eAdj};render();}
-  function render(){if(!block)return;const now=new Date();let nowM=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;if(nowM<block.s&&block.e>24*60)nowM+=24*60;const sa=minuteToAngle(block.s),ea=minuteToAngle(block.e);sector.setAttribute('d',describe(130,130,106,sa,ea));const total=block.e-block.s;const f=(nowM-block.s)/total;if(f<=0){passed.setAttribute('d','');}else if(f>=1){passed.setAttribute('d',describe(130,130,106,sa,ea));}else{const ca=sa+(((ea-sa)+(ea<=sa?Math.PI*2:0))*Math.max(0,Math.min(1,f)));passed.setAttribute('d',describe(130,130,106,sa,ca));}}
-  function update(){const n=new Date();const h=String(n.getHours()).padStart(2,'0'),m=String(n.getMinutes()).padStart(2,'0'),s=String(n.getSeconds()).padStart(2,'0');timeNow.textContent=`${h}:${m}:${s}`;if(block){let nm=n.getHours()*60+n.getMinutes()+n.getSeconds()/60;if(nm<block.s&&block.e>24*60)nm+=24*60;const rem=Math.max(0,block.e-nm);if(nm<block.s){countdown.textContent=`Start over ${Math.ceil(block.s-nm)} min`;}else if(nm>block.e){countdown.textContent='Afgerond';}else{const rh=Math.floor(rem/60),rm=Math.floor(rem%60);countdown.textContent=`Nog ${rh}u ${rm}m`;}}render();}
+  function setBlock(sHM,eHM){
+    const s=toMinutes(sHM),e=toMinutes(eHM);
+    if(s==null||e==null)return;
+    const eAdj=(e<=s)?e+24*60:e;
+    block={s,e:eAdj};
+    render();
+    // --- Save to localStorage ---
+    saveSettings();
+  }
+
+  function render(){
+    if(!block)return;
+    const now=new Date();
+    let nowM=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
+    if(nowM<block.s&&block.e>24*60)nowM+=24*60;
+    const sa=minuteToAngle(block.s),ea=minuteToAngle(block.e);
+    sector.setAttribute('d',describe(130,130,106,sa,ea));
+    const total=block.e-block.s;
+    const f=(nowM-block.s)/total;
+    if(f<=0){passed.setAttribute('d','');} 
+    else if(f>=1){passed.setAttribute('d',describe(130,130,106,sa,ea));} 
+    else{const ca=sa+(((ea-sa)+(ea<=sa?Math.PI*2:0))*Math.max(0,Math.min(1,f)));passed.setAttribute('d',describe(130,130,106,sa,ca));}
+  }
+
+  function update(){
+    const n=new Date();
+    const h=String(n.getHours()).padStart(2,'0'),m=String(n.getMinutes()).padStart(2,'0'),s=String(n.getSeconds()).padStart(2,'0');
+    timeNow.textContent=`${h}:${m}:${s}`;
+    if(block){
+      let nm=n.getHours()*60+n.getMinutes()+n.getSeconds()/60;
+      if(nm<block.s&&block.e>24*60)nm+=24*60;
+      const rem=Math.max(0,block.e-nm);
+      if(nm<block.s){countdown.textContent=`Start over ${Math.ceil(block.s-nm)} min`;}
+      else if(nm>block.e){countdown.textContent='Afgerond';}
+      else{const rh=Math.floor(rem/60),rm=Math.floor(rem%60);countdown.textContent=`Nog ${rh}u ${rm}m`;}
+    }
+    render();
+  }
+
+  // --- Save all settings to localStorage ---
+  function saveSettings(){
+    const colors = {};
+    ['bg','face','sector','passed','accent','text','muted','button','dash'].forEach(v=>{
+      colors[v] = getComputedStyle(document.documentElement).getPropertyValue(`--${v}`).trim();
+    });
+    const bgImage = document.body.style.backgroundImage ? document.body.style.backgroundImage.slice(5,-2) : '';
+    localStorage.setItem('clockSettings', JSON.stringify({
+      start: startInput.value,
+      end: endInput.value,
+      colors,
+      bgImage
+    }));
+  }
+
+  // --- Event listeners ---
   apply.addEventListener('click',()=>{setBlock(startInput.value,endInput.value);update();});
   nowBtn.addEventListener('click',()=>{const n=new Date();startInput.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;});
+
+  // --- Initial setup ---
   setBlock(startInput.value,endInput.value);update();setInterval(update,1000);
+
 })();
 </script>
 </body>
