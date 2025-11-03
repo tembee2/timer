@@ -16,7 +16,7 @@
   --button:#a085d6;
   --dash:#d4d4d8;
 }
-html,body{height:100%}
+html,body{height:100%;}
 body{
   margin:0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
@@ -28,12 +28,15 @@ body{
   gap:18px;
   padding:20px;
   box-sizing:border-box;
+  background-size: cover;
+  background-position: center;
 }
 h1{margin:0;font-size:20px;font-weight:700;color:var(--accent);}
 .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;}
 label{font-size:16px;color:var(--text);}
-input[type=time]{padding:10px 12px;border-radius:10px;border:1px solid rgba(0,0,0,0.08);font-size:16px;background:var(--face);}
-button{padding:12px 16px;border-radius:12px;border:0;background:var(--button);color:white;font-weight:700;font-size:16px;box-shadow:0 6px 12px rgba(99,102,241,0.08);}
+input[type=time], input[type=color]{padding:6px 8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08);font-size:16px;background:var(--face);}
+input[type=file]{padding:4px;}
+button{padding:12px 16px;border-radius:12px;border:0;background:var(--button);color:white;font-weight:700;font-size:16px;box-shadow:0 6px 12px rgba(99,102,241,0.08);cursor:pointer;}
 .clock-wrap{width:min(420px,86vw);height:min(420px,86vw);display:grid;place-items:center;}
 svg{width:100%;height:100%;}
 .center-text{text-align:center;}
@@ -55,12 +58,23 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
 </head>
 <body>
 <h1>Klok‑sector — Lavendel met subtiele stippellijnen</h1>
+
 <div class="controls">
   <label>Start: <input id="start" type="time" value="11:00"></label>
   <label>Eind: <input id="end" type="time" value="15:00"></label>
   <button id="apply">Toon blok</button>
   <button id="now">Zet op nu</button>
 </div>
+
+<div class="controls">
+  <label>Background color: <input type="color" id="bgColor"></label>
+  <label>Face color: <input type="color" id="faceColor"></label>
+  <label>Sector color: <input type="color" id="sectorColor"></label>
+  <label>Passed color: <input type="color" id="passedColor"></label>
+  <label>Accent color: <input type="color" id="accentColor"></label>
+  <label>Background image: <input type="file" id="bgImage" accept="image/*"></label>
+</div>
+
 <div class="clock-wrap">
   <svg viewBox="0 0 260 260" id="svg">
     <defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-opacity="0.08"/></filter></defs>
@@ -74,28 +88,50 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
     <circle cx="130" cy="130" r="4" fill="var(--accent)"/>
   </svg>
 </div>
+
 <div class="center-text">
   <div class="big" id="timeNow">--:--:--</div>
   <div class="muted" id="countdown"></div>
   <div class="legend"><span class="dot school"></span><span>schooltijd</span><span class="dot passed"></span><span>verstreken</span></div>
 </div>
+
 <footer>Open in Chrome (Android) of Safari (iOS). Voeg toe aan startscherm voor 'app-gevoel'.</footer>
+
 <script>
 (function(){
-  const sector=document.getElementById('sector'),passed=document.getElementById('passed'),
-        timeNow=document.getElementById('timeNow'),countdown=document.getElementById('countdown'),
-        startInput=document.getElementById('start'),endInput=document.getElementById('end'),
-        apply=document.getElementById('apply'),nowBtn=document.getElementById('now'),
-        ticksG=document.getElementById('ticks'),numsG=document.getElementById('numbers'),dashG=document.getElementById('dashlines');
+  const sector=document.getElementById('sector'),
+        passed=document.getElementById('passed'),
+        timeNow=document.getElementById('timeNow'),
+        countdown=document.getElementById('countdown'),
+        startInput=document.getElementById('start'),
+        endInput=document.getElementById('end'),
+        apply=document.getElementById('apply'),
+        nowBtn=document.getElementById('now'),
+        ticksG=document.getElementById('ticks'),
+        numsG=document.getElementById('numbers'),
+        dashG=document.getElementById('dashlines');
+
+  const bgColor=document.getElementById('bgColor'),
+        faceColor=document.getElementById('faceColor'),
+        sectorColor=document.getElementById('sectorColor'),
+        passedColor=document.getElementById('passedColor'),
+        accentColor=document.getElementById('accentColor'),
+        bgImageInput=document.getElementById('bgImage');
 
   // --- Load saved settings ---
   const settings = JSON.parse(localStorage.getItem('clockSettings') || '{}');
+
   if(settings.start) startInput.value = settings.start;
   if(settings.end) endInput.value = settings.end;
   if(settings.colors){
     for(const key in settings.colors){
       document.documentElement.style.setProperty(`--${key}`, settings.colors[key]);
     }
+    bgColor.value = settings.colors.bg || '#f3f4f6';
+    faceColor.value = settings.colors.face || '#ffffff';
+    sectorColor.value = settings.colors.sector || '#c3b1e1';
+    passedColor.value = settings.colors.passed || '#f5c2d6';
+    accentColor.value = settings.colors.accent || '#8b6bb8';
   }
   if(settings.bgImage) document.body.style.backgroundImage = `url(${settings.bgImage})`;
 
@@ -139,7 +175,6 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
     const eAdj=(e<=s)?e+24*60:e;
     block={s,e:eAdj};
     render();
-    // --- Save to localStorage ---
     saveSettings();
   }
 
@@ -172,7 +207,6 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
     render();
   }
 
-  // --- Save all settings to localStorage ---
   function saveSettings(){
     const colors = {};
     ['bg','face','sector','passed','accent','text','muted','button','dash'].forEach(v=>{
@@ -189,10 +223,35 @@ footer{font-size:13px;color:var(--muted);margin-top:8px;}
 
   // --- Event listeners ---
   apply.addEventListener('click',()=>{setBlock(startInput.value,endInput.value);update();});
-  nowBtn.addEventListener('click',()=>{const n=new Date();startInput.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;});
+  nowBtn.addEventListener('click',()=>{
+    const n=new Date();
+    startInput.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+  });
+
+  [bgColor, faceColor, sectorColor, passedColor, accentColor].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      const propMap = {bg:bgColor, face:faceColor, sector:sectorColor, passed:passedColor, accent:accentColor};
+      document.documentElement.style.setProperty(`--${el.id.replace('Color','')}`, el.value);
+      saveSettings();
+    });
+  });
+
+  bgImageInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(file){
+      const reader = new FileReader();
+      reader.onload = ()=> {
+        document.body.style.backgroundImage = `url(${reader.result})`;
+        saveSettings();
+      };
+      reader.readAsDataURL(file);
+    }
+  });
 
   // --- Initial setup ---
-  setBlock(startInput.value,endInput.value);update();setInterval(update,1000);
+  setBlock(startInput.value,endInput.value);
+  update();
+  setInterval(update,1000);
 
 })();
 </script>
